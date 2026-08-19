@@ -1,0 +1,21 @@
+search_people:
+  name: Search people
+  description: >-
+    Live, on-demand lookup against Zenbi's school directory — searches by
+    name and returns any matching student(s)/parent(s) plus their linked
+    family relations. Not cached; nothing is stored between calls.
+  fields:
+    config_entry_id:
+      name: Config entry
+      description: The Zenbi config entry to search under.
+      required: true
+      selector:
+        config_entry:
+          integration: zenbi
+    query:
+      name: Query
+      description: Name (or part of a name) to search for. At least 2 characters.
+      required: true
+      example: "Freja"
+      selector:
+        text:

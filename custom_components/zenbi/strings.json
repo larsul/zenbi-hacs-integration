@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Zenbi",
+        "description": "Enter the login you use at app.zenbi.dk. This is an unofficial integration against Zenbi's private API — see the repository README before using it.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "children": {
+        "title": "Name your children",
+        "description": "These class codes were found in your account's schedule ({codes}). Optionally give each one a friendly name (e.g. \"4A\" → \"Emma\") — leave any blank to just use the raw class code."
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate with Zenbi",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password.",
+      "cannot_connect": "Could not reach Zenbi. Try again later."
+    },
+    "abort": {
+      "already_configured": "This Zenbi account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "children": {
+        "title": "Name your children",
+        "description": "Update the friendly name shown for each class code. Leave blank to use the raw class code."
+      },
+      "directory_cache": {
+        "title": "Directory cache (advanced, off by default)",
+        "description": "The zenbi.search_people service already looks up the school directory live, on demand, and keeps nothing afterwards — that's the supported way to use this. Turning this on instead adds a sensor that polls and stores the *entire* school family directory (names, addresses, phone numbers, parent/child links) as standing sensor state, refreshed on a timer, whether you look at it or not. See the README's \"Why the directory search is a service, not a sensor\" section before enabling this. Leave off unless you specifically want a cached/standing copy and accept that tradeoff.",
+        "data": {
+          "enable_directory_cache": "Enable directory cache sensor"
+        }
+      }
+    }
+  },
+  "services": {
+    "search_people": {
+      "name": "Search people",
+      "description": "Live, on-demand lookup against Zenbi's school directory — searches by name and returns matching student(s)/parent(s) plus their linked family relations. Not cached.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "The Zenbi config entry to search under."
+        },
+        "query": {
+          "name": "Query",
+          "description": "Name (or part of a name) to search for. At least 2 characters."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "domain": "zenbi",
+  "name": "Zenbi",
+  "codeowners": ["@larsul"],
+  "config_flow": true,
+  "documentation": "https://github.com/larsul/zenbi-hacs-integration",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/larsul/zenbi-hacs-integration/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

@@ -1,0 +1,45 @@
+# Claude Code Instructions for zenbi-hacs-integration
+
+## Project Overview
+A [HACS](https://hacs.xyz/) custom Home Assistant integration for [Zenbi](https://app.zenbi.dk), the Danish school-home platform. Built 2026-08-19, spun out of a prior personal Home Assistant setup that had a one-off Zenbi bridge, so any Zenbi-using parent running Home Assistant can use it, instead of everyone having to reverse-engineer the same private API themselves.
+
+Zenbi has **no public API**. Everything this integration does was reverse-engineered against the real `app.zenbi.dk` web app — see `docs/zenbi-api-scrape.md` for the full protocol writeup. It can break without notice if Zenbi changes their app, and isn't affiliated with or endorsed by Zenbi.
+
+## Where this came from
+
+The prior setup already had a working, hand-rolled Zenbi bridge: a pyscript app polling schedule/homework/opslagstavle into HA sensors, hardcoded to one family's own kids via a class-code-to-child-name map, plus a people-directory/address-search feature (find a classmate's parent's address for a playdate) that cached the *entire* school's family directory as a standing sensor, refreshed every 30 min forever.
+
+Formalizing this into a real HACS integration raised a privacy question worth recording: does packaging and publishing "search other kids' parents' addresses/phone numbers by name" cross a line, even though each user brings their own Zenbi credentials?
+
+**The resolution** (worth preserving because it shapes the architecture): the access-control argument holds up — every user needs their own valid Zenbi login, which already has this exact same access via Zenbi's own official "Personer" search page. The integration doesn't expose anything to anyone the platform itself doesn't already permit; it's the same trust model as any other "bring your own credentials" HACS integration (banks, cars, energy providers). What *was* changed as a direct result of that discussion: the directory search is a **live, on-demand service call** (`zenbi.search_people`), never a cached/polled sensor. A polled sensor would silently accumulate a standing, structured copy of a school's whole family directory inside a system (HA) that's often less locked-down than Zenbi itself (shared tablets, local network access) — regardless of whether anyone ever actually looks anything up. Same access, same data, just not turned into a silent export. This reasoning is also written into the README's "Why the directory search is a service, not a sensor" section — keep it there if the README gets rewritten, it's the load-bearing justification for that design choice.
+
+## Architecture decisions (and why)
+
+- **No hardcoded child/class map.** The original bridge hardcoded a class-code-to-child-name map for one specific family. This integration can't do that for arbitrary users, so the config flow samples the account's own schedule feed after login, discovers whichever class codes actually appear, and lets the user optionally name each one. Skippable — falls back to the raw class code as the entity label. See `config_flow.py`'s `_discover_class_codes` and the `children` step.
+- **Class-code detection via regex, not a lookup.** `const.py`'s `CLASS_CODE_RE` (`^\d{1,2}\.?\s?[A-ZÆØÅ]{1,2}$`) distinguishes real per-class lesson titles ("4A", "7A", "10B") from staff/grade-band noise sharing the same merged calendar feed ("Tilsyn", "7.-9.kl"). **Live-validated** 2026-08-19 against a real account: correctly isolated the account's two real class codes out of 374 real lessons with zero false positives/negatives in that test. If a differently-shaped school's class codes don't match this pattern, this is the first thing to check.
+- **Async client, not the sync `requests`-based pyscript version.** `api.py` is ported from the prior pyscript bridge's already-proven logic but rewritten on `aiohttp` via `homeassistant.helpers.aiohttp_client.async_get_clientsession`, since a real integration must be non-blocking (the pyscript version got away with sync calls because pyscript wraps them in `task.executor()`).
+- **Re-login every poll cycle, no token-refresh optimization.** Zenbi's login response includes a `refreshToken`, but that refresh flow hasn't been reverse-engineered. v1 just re-authenticates with username/password every coordinator cycle (30 min default) and on every `search_people` service call — matches the existing bridge's proven behavior. Worth revisiting if Zenbi ever rate-limits repeated logins.
+- **Public GitHub repo via HACS "custom repositories", not the curated HACS default store.** Deliberately not submitting to `hacs/default` — that's a slower, gated review process with a higher quality bar (topics, releases, etc.) that wasn't worth taking on for v1. Anyone can still install it today by adding this repo URL as a custom repository in HACS.
+- **GitHub username used throughout (manifest.json, README, issue tracker URLs): `larsul`.**
+- **Directory caching is opt-in, off by default, and deliberately kept separate from the search service.** Some users want a standing local copy of the directory instead of calling `zenbi.search_people` each time (e.g. for a dashboard card). Rather than compromise the service-call design's default behavior, this is a distinct `ZenbiDirectoryCoordinator`/`ZenbiDirectoryCacheSensor` pair, gated behind `CONF_ENABLE_DIRECTORY_CACHE`, only ever instantiated in `__init__.py` if that option is explicitly turned on via its own options-flow step (`config_flow.py`'s `async_step_directory_cache`) — kept out of the children-naming step so it can't be toggled on by accident. `api.py`'s directory-fetch logic was refactored into a shared `async_fetch_directory` so both the live search and the cache sensor parse identically; only what each caller does with the result differs. Docstrings/README/strings.json all repeat the same warning: this knowingly re-adds the standing-copy exposure the rest of the design avoids.
+
+## Current state (as of 2026-08-19)
+
+**Built and locally verified, NOT yet pushed to GitHub.** The repo is git-initialized at this path with everything staged (`git add -A` already run) but not committed, and there is no GitHub remote configured yet — pushing it live was explicitly deferred as its own separate confirmation step, not bundled into the build.
+
+Verification done so far:
+- Every `.py` file compiles clean (`python -m py_compile`); every `.json` file parses.
+- `const.py` and `api.py` import and run standalone with no `homeassistant` package installed (they have zero HA dependencies) — verified by faking the `zenbi` package in `sys.modules` to skip `__init__.py` (which does import `homeassistant.*` and can't be exercised without a real HA core checkout, not available locally).
+- **Live smoke test against a real Zenbi account**: login succeeds, a deliberately wrong password correctly raises `ZenbiAuthError`, schedule fetch returned 374 real lessons and auto-discovered exactly two real class codes with the regex (no hardcoding), boards fetch returned 10 real posts, and `search_people` correctly matched people and joined parent↔child relations end-to-end.
+
+Not yet done:
+- **Not pushed to GitHub** (`gh repo create` + push) — needs an explicit go-ahead, since making a repo public is a one-way visibility action.
+- **`config_flow.py`'s `OptionsFlow` pattern hasn't been validated against a real, specific HA version.** It uses the long-standing `config_entry` passed into `__init__` pattern; recent HA cores have been migrating this (newer versions provide `self.config_entry` as a base-class property and warn on manually assigning it). There's a comment at the top of `config_flow.py` flagging this — check it against whatever HA version is actually being targeted before a release.
+- **hassfest/HACS GitHub Actions validation** (`.github/workflows/validate.yml`) has never actually run — it only runs once pushed, no full HA core checkout available locally to simulate it.
+- **The prior setup's own dashboard has NOT been migrated** to consume this integration instead of its existing pyscript bridge — that pyscript bridge (and its cached directory sensor, the thing this whole integration's on-demand design deliberately avoids repeating) is still running independently. Migrating it over is a deliberate future follow-up, not done here.
+
+## Next steps, in likely order
+
+1. Decide on and confirm pushing this live to `github.com/larsul/zenbi-hacs-integration` (public repo, per the "custom repositories" distribution choice).
+2. Validate the config/options flow against a real HA instance — install into `/config/custom_components/zenbi/`, restart HA, run through the actual config flow UI. This is the one thing that genuinely can't be verified without a live HA core.
+3. Once proven working, optionally revisit migrating the prior setup's own dashboard pages to call this integration's `zenbi.search_people` service instead of reading the pyscript bridge's cached directory sensor — and retire that cached sensor + its standing stored credentials once the migration's confirmed working.

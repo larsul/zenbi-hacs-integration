@@ -1,0 +1,64 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Opret forbindelse til Zenbi",
+        "description": "Indtast det login, du bruger på app.zenbi.dk. Dette er en uofficiel integration mod Zenbis private API — se repositoriets README, før du bruger den.",
+        "data": {
+          "username": "Brugernavn",
+          "password": "Adgangskode"
+        }
+      },
+      "children": {
+        "title": "Navngiv dine børn",
+        "description": "Disse klassekoder blev fundet i din kontos skema ({codes}). Giv eventuelt hver af dem et venligt navn (f.eks. \"4A\" → \"Emma\") — lad et felt stå tomt for at bruge den rå klassekode."
+      },
+      "reauth_confirm": {
+        "title": "Log ind på Zenbi igen",
+        "data": {
+          "username": "Brugernavn",
+          "password": "Adgangskode"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Forkert brugernavn eller adgangskode.",
+      "cannot_connect": "Kunne ikke få forbindelse til Zenbi. Prøv igen senere."
+    },
+    "abort": {
+      "already_configured": "Denne Zenbi-konto er allerede konfigureret.",
+      "reauth_successful": "Gen-godkendelse lykkedes."
+    }
+  },
+  "options": {
+    "step": {
+      "children": {
+        "title": "Navngiv dine børn",
+        "description": "Opdatér det venlige navn, der vises for hver klassekode. Lad stå tomt for at bruge den rå klassekode."
+      },
+      "directory_cache": {
+        "title": "Katalog-cache (avanceret, slået fra som standard)",
+        "description": "Tjenesten zenbi.search_people slår allerede skolens katalog op live, på forespørgsel, og gemmer ikke noget bagefter — det er den understøttede måde at bruge dette på. Slår du dette til i stedet, tilføjes en sensor, der løbende henter og gemmer *hele* skolens familiekatalog (navne, adresser, telefonnumre, forælder/barn-relationer) som fast sensor-tilstand, opdateret på et tidsinterval, uanset om du kigger på det eller ej. Se afsnittet \"Why the directory search is a service, not a sensor\" i README, før du slår dette til. Lad det være slået fra, medmindre du specifikt ønsker en cachet/fast kopi og accepterer den afvejning.",
+        "data": {
+          "enable_directory_cache": "Aktivér katalog-cache-sensor"
+        }
+      }
+    }
+  },
+  "services": {
+    "search_people": {
+      "name": "Søg personer",
+      "description": "Live opslag i Zenbis skolekatalog — søger på navn og returnerer matchende elev(er)/forælder(re) samt deres tilknyttede familierelationer. Caches ikke.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationspost",
+          "description": "Den Zenbi-konfigurationspost, der skal søges under."
+        },
+        "query": {
+          "name": "Søgning",
+          "description": "Navn (eller del af et navn) der skal søges efter. Mindst 2 tegn."
+        }
+      }
+    }
+  }
+}

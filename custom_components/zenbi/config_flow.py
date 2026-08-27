@@ -1,12 +1,9 @@
 """Config flow for the Zenbi integration.
 
-NOTE: written against the long-standing OptionsFlow pattern (config_entry
-passed into __init__). HA has been migrating this across recent releases
-(newer cores provide self.config_entry as a base-class property and warn on
-manually assigning it) — this hasn't been validated against a live HA core
-checkout (none available locally, see the repo's verification notes), so
-double-check this against whatever HA version you're actually running
-before shipping a release.
+NOTE: ZenbiOptionsFlow stores its entry as self._entry, not self.config_entry
+- confirmed live against a real HA core that self.config_entry is a
+read-only property on newer versions, and assigning to it raises
+AttributeError. See ZenbiOptionsFlow's docstring for details.
 """
 from __future__ import annotations
 

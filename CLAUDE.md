@@ -23,23 +23,22 @@ Formalizing this into a real HACS integration raised a privacy question worth re
 - **GitHub username used throughout (manifest.json, README, issue tracker URLs): `larsul`.**
 - **Directory caching is opt-in, off by default, and deliberately kept separate from the search service.** Some users want a standing local copy of the directory instead of calling `zenbi.search_people` each time (e.g. for a dashboard card). Rather than compromise the service-call design's default behavior, this is a distinct `ZenbiDirectoryCoordinator`/`ZenbiDirectoryCacheSensor` pair, gated behind `CONF_ENABLE_DIRECTORY_CACHE`, only ever instantiated in `__init__.py` if that option is explicitly turned on via its own options-flow step (`config_flow.py`'s `async_step_directory_cache`) — kept out of the children-naming step so it can't be toggled on by accident. `api.py`'s directory-fetch logic was refactored into a shared `async_fetch_directory` so both the live search and the cache sensor parse identically; only what each caller does with the result differs. Docstrings/README/strings.json all repeat the same warning: this knowingly re-adds the standing-copy exposure the rest of the design avoids.
 
-## Current state (as of 2026-08-19)
+## Current state (as of 2026-08-27)
 
-**Built and locally verified, NOT yet pushed to GitHub.** The repo is git-initialized at this path with everything staged (`git add -A` already run) but not committed, and there is no GitHub remote configured yet — pushing it live was explicitly deferred as its own separate confirmation step, not bundled into the build.
+**Pushed to GitHub (`github.com/larsul/zenbi-hacs-integration`, public) and installed via HACS on a real HA instance.** Config/options flow has now been exercised live, not just locally simulated.
 
 Verification done so far:
 - Every `.py` file compiles clean (`python -m py_compile`); every `.json` file parses.
 - `const.py` and `api.py` import and run standalone with no `homeassistant` package installed (they have zero HA dependencies) — verified by faking the `zenbi` package in `sys.modules` to skip `__init__.py` (which does import `homeassistant.*` and can't be exercised without a real HA core checkout, not available locally).
 - **Live smoke test against a real Zenbi account**: login succeeds, a deliberately wrong password correctly raises `ZenbiAuthError`, schedule fetch returned 374 real lessons and auto-discovered exactly two real class codes with the regex (no hardcoding), boards fetch returned 10 real posts, and `search_people` correctly matched people and joined parent↔child relations end-to-end.
+- **Live HA validation** (2026-08-27): installed via HACS custom repository on a real HA core. Found and fixed a real bug this way — `ZenbiOptionsFlow.__init__` did `self.config_entry = config_entry`, which 500'd on open because that HA core's `OptionsFlow.config_entry` is a read-only property with no setter. Fixed in commit `6bf1036` (store as `self._entry` instead, everywhere in the class); redeployed via HACS and confirmed the options flow (child naming + directory-cache toggle) now opens and completes correctly.
 
 Not yet done:
-- **Not pushed to GitHub** (`gh repo create` + push) — needs an explicit go-ahead, since making a repo public is a one-way visibility action.
-- **`config_flow.py`'s `OptionsFlow` pattern hasn't been validated against a real, specific HA version.** It uses the long-standing `config_entry` passed into `__init__` pattern; recent HA cores have been migrating this (newer versions provide `self.config_entry` as a base-class property and warn on manually assigning it). There's a comment at the top of `config_flow.py` flagging this — check it against whatever HA version is actually being targeted before a release.
-- **hassfest/HACS GitHub Actions validation** (`.github/workflows/validate.yml`) has never actually run — it only runs once pushed, no full HA core checkout available locally to simulate it.
+- **The daily "Validate" GitHub Action has been red since the first push** — not the fix above, a separate issue: HACS's `brands` check requires either a `custom_components/zenbi/brand/icon.png` in-repo or a `zenbi` domain entry in `home-assistant/brands`. Neither exists yet. Doesn't block installs via "custom repository" (that check only gates submission to the curated `hacs/default` store), so it's cosmetic for now, not urgent. A placeholder icon has been generated locally but is not yet committed.
 - **The prior setup's own dashboard has NOT been migrated** to consume this integration instead of its existing pyscript bridge — that pyscript bridge (and its cached directory sensor, the thing this whole integration's on-demand design deliberately avoids repeating) is still running independently. Migrating it over is a deliberate future follow-up, not done here.
 
 ## Next steps, in likely order
 
-1. Decide on and confirm pushing this live to `github.com/larsul/zenbi-hacs-integration` (public repo, per the "custom repositories" distribution choice).
-2. Validate the config/options flow against a real HA instance — install into `/config/custom_components/zenbi/`, restart HA, run through the actual config flow UI. This is the one thing that genuinely can't be verified without a live HA core.
+1. Decide whether to commit the placeholder `brand/icon.png` (or a real Zenbi-appropriate icon) to quiet the daily failing "Validate" Action, given it's cosmetic rather than blocking.
+2. Continue exercising the live HA install for further bugs (sensors, coordinator polling, the `search_people` service call) the same way the OptionsFlow crash was found.
 3. Once proven working, optionally revisit migrating the prior setup's own dashboard pages to call this integration's `zenbi.search_people` service instead of reading the pyscript bridge's cached directory sensor — and retire that cached sensor + its standing stored credentials once the migration's confirmed working.

@@ -149,10 +149,21 @@ class ZenbiConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class ZenbiOptionsFlow(config_entries.OptionsFlow):
     """Re-run child-name discovery/editing any time (new school year, a
     class code that wasn't in the original sample window, etc.), followed
-    by the (off-by-default, opt-in) directory-cache toggle."""
+    by the (off-by-default, opt-in) directory-cache toggle.
+
+    NOTE: stores the entry as `self._entry`, deliberately NOT `self.config_entry`
+    - recent HA core (confirmed against a 2026-era dev build) turned
+    `OptionsFlow.config_entry` into a property with no setter, so the
+    long-standing `self.config_entry = config_entry` pattern this class used
+    to follow now raises `AttributeError: property 'config_entry' of
+    'ZenbiOptionsFlow' object has no setter` the moment the options flow is
+    opened. Using a differently-named attribute sidesteps the property
+    entirely rather than depending on exactly which HA version's inherited
+    `config_entry` behavior is active.
+    """
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+        self._entry = config_entry
         self._class_codes: list[str] = []
         self._children: dict[str, str] = {}
 
@@ -161,20 +172,20 @@ class ZenbiOptionsFlow(config_entries.OptionsFlow):
         try:
             zenbi_session = await async_login(
                 session,
-                self.config_entry.data["username"],
-                self.config_entry.data["password"],
-                self.config_entry.data[CONF_DEVICE_ID],
+                self._entry.data["username"],
+                self._entry.data["password"],
+                self._entry.data[CONF_DEVICE_ID],
             )
             self._class_codes = await _discover_class_codes(session, zenbi_session.token)
         except ZenbiApiError:
             # Fall back to whatever codes are already configured rather than
             # locking the user out of the options flow on a transient error.
-            self._class_codes = list(self.config_entry.options.get(CONF_CHILDREN, {}).keys())
+            self._class_codes = list(self._entry.options.get(CONF_CHILDREN, {}).keys())
 
         return await self.async_step_children()
 
     async def async_step_children(self, user_input: dict[str, Any] | None = None):
-        current = self.config_entry.options.get(CONF_CHILDREN, {})
+        current = self._entry.options.get(CONF_CHILDREN, {})
         if user_input is not None:
             self._children = {code: name for code, name in user_input.items() if name}
             return await self.async_step_directory_cache()
@@ -189,7 +200,7 @@ class ZenbiOptionsFlow(config_entries.OptionsFlow):
         default; see ZenbiDirectoryCacheSensor's docstring and the README's
         "Why the directory search is a service, not a sensor" section
         before turning it on."""
-        current_enabled = self.config_entry.options.get(CONF_ENABLE_DIRECTORY_CACHE, False)
+        current_enabled = self._entry.options.get(CONF_ENABLE_DIRECTORY_CACHE, False)
         if user_input is not None:
             return self.async_create_entry(
                 title="",
